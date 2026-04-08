@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>일일 업무표</title>
+
+<!-- Tailwind -->
+<script src="https://cdn.tailwindcss.com"></script>
+
+<!-- Drag -->
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
+</head>
+
+<body class="bg-[#f7f4f1] flex justify-center">
+
+<div class="w-full max-w-md px-4 py-6">
+
+  <!-- Header -->
+  <div class="mb-6">
+    <div class="text-xs tracking-widest text-gray-400 mb-2">
+      YURI WORK SYSTEM
+    </div>
+    <h1 class="text-2xl font-bold mb-1">일일 업무표</h1>
+    <p class="text-sm text-gray-400" id="date"></p>
+  </div>
+
+  <!-- Stats -->
+  <div class="flex gap-2 mb-6">
+    <div class="flex-1 bg-white rounded-2xl py-4 text-center shadow-sm">
+      <div id="total" class="text-xl font-bold">0</div>
+      <div class="text-xs text-gray-400">전체 업무</div>
+    </div>
+    <div class="flex-1 bg-white rounded-2xl py-4 text-center shadow-sm">
+      <div id="done" class="text-xl font-bold text-green-600">0</div>
+      <div class="text-xs text-gray-400">완료</div>
+    </div>
+    <div class="flex-1 bg-white rounded-2xl py-4 text-center shadow-sm">
+      <div id="undone" class="text-xl font-bold text-orange-500">0</div>
+      <div class="text-xs text-gray-400">미완료</div>
+    </div>
+  </div>
+
+  <!-- Progress -->
+  <div class="w-full bg-gray-200 h-2 rounded-full mb-6">
+    <div id="progress" class="bg-green-700 h-2 rounded-full" style="width:0%"></div>
+  </div>
+
+  <!-- 미완료 -->
+  <div class="text-sm text-gray-400 mb-3">⚡ 미완료 업무</div>
+  <div id="taskList" class="flex flex-col gap-3 mb-6"></div>
+
+  <!-- 완료 -->
+  <div class="text-sm text-gray-400 mb-3">✔ 완료 업무</div>
+  <div id="doneList" class="flex flex-col gap-3 mb-6"></div>
+
+  <!-- Add -->
+  <div class="bg-white rounded-2xl p-4 shadow-sm">
+    <div class="text-sm text-gray-400 mb-2">업무 추가</div>
+
+    <div class="flex gap-2 mb-3">
+      <input id="input"
+        class="flex-1 border rounded-xl px-3 py-3 text-sm"
+        placeholder="새 업무 입력..." />
+
+      <select id="category" class="border rounded-xl px-3 text-sm">
+        <option>수업</option>
+        <option>행정</option>
+        <option>상담</option>
+        <option>기타</option>
+      </select>
+
+      <button onclick="addTask()"
+        class="bg-black text-white px-4 py-3 rounded-xl text-sm">
+        + 추가
+      </button>
+    </div>
+
+    <button onclick="resetTasks()"
+      class="w-full border rounded-xl py-3 text-sm text-gray-400">
+      오늘 업무 초기화
+    </button>
+  </div>
+
+</div>
+
+<script>
+let tasks = JSON.parse(localStorage.getItem("tasks") || "[]");
+
+function save() {
+  localStorage.setItem("tasks", JSON.stringify(tasks));
+}
+
+function getTagColor(category) {
+  if (category === "행정") return "bg-orange-100 text-orange-500";
+  if (category === "상담") return "bg-purple-100 text-purple-500";
+  if (category === "기타") return "bg-green-100 text-green-500";
+  return "bg-blue-100 text-blue-500";
+}
+
+function render() {
+  const list = document.getElementById("taskList");
+  const doneList = document.getElementById("doneList");
+
+  list.innerHTML = "";
+  doneList.innerHTML = "";
+
+  const undone = tasks.filter(t => !t.done);
+  const done = tasks.filter(t => t.done);
+
+  // 미완료
+  undone.forEach((task, i) => {
+    const el = document.createElement("div");
+    el.dataset.id = task.id;
+    el.className = "flex justify-between items-center border-2 border-pink-300 rounded-xl px-4 py-4 bg-white cursor-move";
+
+    el.innerHTML = `
+      <div class="flex items-center gap-3">
+        <div onclick="toggleTask(${task.id})"
+          class="w-6 h-6 border-2 border-pink-400 rounded-full cursor-pointer"></div>
+        <div class="text-xs text-gray-400">${String(i+1).padStart(2,"0")}</div>
+        <div class="text-sm">${task.text}</div>
+      </div>
+
+      <div class="flex items-center gap-2">
+        <span class="text-xs px-2 py-1 rounded-full ${getTagColor(task.category)}">
+          ${task.category}
+        </span>
+        <div class="w-2 h-2 bg-pink-400 rounded-full"></div>
+      </div>
+    `;
+    list.appendChild(el);
+  });
+
+  // 완료
+  done.forEach((task, i) => {
+    const el = document.createElement("div");
+    el.className = "flex justify-between items-center bg-gray-100 border border-gray-200 rounded-xl px-4 py-4";
+
+    el.innerHTML = `
+      <div class="flex items-center gap-3">
+        <div onclick="toggleTask(${task.id})"
+          class="w-6 h-6 bg-green-600 text-white flex items-center justify-center rounded-full cursor-pointer">✓</div>
+        <div class="text-xs text-gray-400">${String(i+1).padStart(2,"0")}</div>
+        <div class="text-sm line-through text-gray-400">${task.text}</div>
+      </div>
+
+      <span class="text-xs px-2 py-1 rounded-full ${getTagColor(task.category)}">
+        ${task.category}
+      </span>
+    `;
+    doneList.appendChild(el);
+  });
+
+  // stats
+  const total = tasks.length;
+  const doneCount = done.length;
+
+  document.getElementById("total").innerText = total;
+  document.getElementById("done").innerText = doneCount;
+  document.getElementById("undone").innerText = total - doneCount;
+
+  // progress
+  const percent = total === 0 ? 0 : (doneCount / total) * 100;
+  document.getElementById("progress").style.width = percent + "%";
+
+  // 드래그 적용
+  new Sortable(list, {
+    animation: 150,
+    onEnd: function () {
+      const newOrder = [];
+      const items = document.querySelectorAll("#taskList > div");
+
+      items.forEach((el) => {
+        const id = Number(el.dataset.id);
+        const task = tasks.find(t => t.id === id);
+        if (task) newOrder.push(task);
+      });
+
+      const doneTasks = tasks.filter(t => t.done);
+      tasks = [...newOrder, ...doneTasks];
+
+      save();
+      render();
+    }
+  });
+}
+
+function addTask() {
+  const input = document.getElementById("input");
+  const category = document.getElementById("category").value;
+
+  if (!input.value.trim()) return;
+
+  tasks.push({
+    id: Date.now(),
+    text: input.value,
+    category,
+    done: false
+  });
+
+  input.value = "";
+  save();
+  render();
+}
+
+function toggleTask(id) {
+  tasks = tasks.map(t => t.id === id ? {...t, done: !t.done} : t);
+  save();
+  render();
+}
+
+function resetTasks() {
+  tasks = [];
+  save();
+  render();
+}
+
+// 날짜
+const today = new Date();
+document.getElementById("date").innerText =
+  `${today.getFullYear()}년 ${today.getMonth()+1}월 ${today.getDate()}일`;
+
+render();
+</script>
+
+</body>
+</html>
